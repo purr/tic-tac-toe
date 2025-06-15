@@ -25,10 +25,10 @@ function checkWin(squares : number[]) {
     [0, 4, 8],
     [2, 4, 6],
   ];
-  for (const [a, b, c] of lines) 
-    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) 
+  for (const [a, b, c] of lines)
+    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c])
       return squares[a];
-  
+
   return cellState.n;
 }
 
@@ -47,7 +47,7 @@ export default function App({ emit } : { emit : () => void }) {
       if (e !== null) r[e] = cellState.x;
 
     for (const e of turns[cellState.y][0])
-      if (e != null) r[e] = cellState.y;
+      if (e !== null) r[e] = cellState.y;
 
     return r;
   }, [turns[cellState.x], turns[cellState.y]]);
@@ -55,11 +55,16 @@ export default function App({ emit } : { emit : () => void }) {
   const winner = useMemo(() => checkWin(cells), [cells]);
   const toDie = useMemo(() => turns[turn][0][0], [turns[cellState.x], turns[cellState.y]]);
 
-  const hancleClick = function(ev : any) {
-    const i : number = Number(ev.target.dataset['index']);
+  const handleClick = function(ev: React.MouseEvent<HTMLButtonElement>) {
+    if (winner !== cellState.n) return;
+
+    const target = ev.target as HTMLButtonElement;
+    const i = Number(target.dataset['index']);
+
+    if (isNaN(i) || i < 0 || i > 8) return;
 
     turns[turn][1](([_, ...t]) => [...t, i]);
-    _turn(t => -t);
+    _turn(t => -t as player);
   };
 
   const handleRetry = function() {
@@ -78,7 +83,7 @@ export default function App({ emit } : { emit : () => void }) {
           <div className={`${s.cell} mx-auto size-12 flex items-center justify-center my-6 rounded-full border-2 text-center`} data-status={winner || turn}></div>
 
           <div className={`${s.board} grid grid-cols-3 grid-rows-3 size-64 gap-2 text-center ${winner && 'filter saturate-50 brightness-75'}`}>
-            { cells.map((c, i) => (<button key={i} onClick={hancleClick} disabled={winner || c} className={`${s.cell} border-2 rounded`} data-limbo={winner ? false : toDie === i} data-status={c} data-index={i}></button>)) }
+            { cells.map((c, i) => (<button key={i} onClick={handleClick} disabled={winner || c} className={`${s.cell} border-2 rounded`} data-limbo={winner ? false : toDie === i} data-status={c} data-index={i}></button>)) }
           </div>
 
         </div>

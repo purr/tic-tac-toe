@@ -3,58 +3,153 @@
 @tailwind utilities;
 
 :root {
-	color-scheme: dark;
+  --fnt-heading: "Domine", "Nunito Sans", system-ui, sans-serif;
+  --fnt-regular: "Nunito Sans", system-ui, sans-serif;
 
-	--fnt-heading : 'Domine', 'Nunito Sans', system-ui, sans-serif;
-	--fnt-regular : 'Nunito Sans', system-ui, sans-serif;
-
-	font-size: 100%;
+  font-size: 100%;
 }
 
-html,body {
-	margin :0;
-	padding : 0;
+html,
+body {
+  margin: 0;
+  padding: 0;
 }
 
 html {
-	scroll-behavior: smooth;
+  scroll-behavior: smooth;
 }
 
-html.dark { 
-	--hierarchy-s : #ffffff;
-	--hierarchy-0 : #f1f5f9;
-	--hierarchy-1 : #94a3b8;
-	--hierarchy-2 : #64748b;
-	--hierarchy-3 : #3f3f46;
+/* Rose Pine Dawn Theme (Light) */
+html.light {
+  /* Base colors */
+  --base: #faf4ed;
+  --surface: #fffaf3;
+  --overlay: #f2e9e1;
+  --muted: #9893a5;
+  --subtle: #797593;
+  --text: #575279;
+  --love: #d7827e;
+  --gold: #ea9d34;
+  --rose: #907aa9;
+  --pine: #286983;
+  --foam: #56949f;
+  --iris: #907aa9;
 
-	--panel-color : var(--hhp-dark-2); 
-	--bg-body : var(--hhp-dark-1);
-	--block-color : var(--hhp-dark-0); 
+  /* Hierarchy colors */
+  --hierarchy-s: var(--text);
+  --hierarchy-0: var(--text);
+  --hierarchy-1: var(--subtle);
+  --hierarchy-2: var(--muted);
+  --hierarchy-3: var(--overlay);
+
+  /* Background colors */
+  --hhp-dark-0: var(--surface);
+  --hhp-dark-1: var(--base);
+  --hhp-dark-2: var(--overlay);
+
+  /* Button specific */
+  --button-border: var(--subtle);
+
+  color-scheme: light;
 }
 
+/* Rose Pine Theme (Dark) */
+html.dark {
+  /* Base colors */
+  --base: #191724;
+  --surface: #1f1d2e;
+  --overlay: #26233a;
+  --muted: #6e6a86;
+  --subtle: #908caa;
+  --text: #e0def4;
+  --love: #eb6f92;
+  --gold: #f6c177;
+  --rose: #ebbcba;
+  --pine: #31748f;
+  --foam: #9ccfd8;
+  --iris: #c4a7e7;
+
+  /* Hierarchy colors */
+  --hierarchy-s: var(--text);
+  --hierarchy-0: var(--text);
+  --hierarchy-1: var(--subtle);
+  --hierarchy-2: var(--muted);
+  --hierarchy-3: var(--surface);
+
+  /* Background colors */
+  --hhp-dark-0: var(--surface);
+  --hhp-dark-1: var(--base);
+  --hhp-dark-2: var(--overlay);
+
+  /* Button specific */
+  --button-border: var(--muted);
+
+  color-scheme: dark;
+}
 
 body {
-	background-color: var(--hhp-dark-1);
-	background-image: none;
+  color: var(--hierarchy-0);
+  background-color: var(--hhp-dark-1);
+  font-family: var(--fnt-regular);
 
-	color : var(--hierarchy-0);
-	background-color: var(--hhp-dark-1);
-	font-family: var(--fnt-regular);
-	
-	--small : 0;
+  --small: 0;
 }
 
-@media (max-width : 768px) {
-	body { --small : 1; }
+@media (max-width: 768px) {
+  body {
+    --small: 1;
+  }
 }
 
-:where(h1,h2,h3,h4,h5,h6) {
-	font-family: var(--fnt-heading);
+:where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--fnt-heading);
 }
 
 #root {
-	width: 100%;
-	min-height: 100vh;
-	display: flex;
-	flex-direction: column;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.theme-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background-color: var(--hhp-dark-2);
+  color: var(--hierarchy-0);
+  border: 1px solid var(--hierarchy-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+  transform: scale(1.1);
+  background-color: var(--overlay);
+}
+
+.animate-spin-once {
+  animation: spin 0.5s ease-in-out;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Custom button styling */
+.btn {
+  border-color: var(--button-border);
+  color: var(--hierarchy-0);
+  transition: all 0.2s ease-in-out;
 }

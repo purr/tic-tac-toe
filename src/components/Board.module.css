@@ -1,37 +1,52 @@
 .board {
-
+  /* Board styling */
 }
 
 .cell {
-	& {
-		border-color: var(--theme-color);
-		color: var(--theme-color);
-		outline: none;
-		font-size: large;
-	}
+  & {
+    border-color: var(--theme-color);
+    color: var(--theme-color);
+    outline: none;
+    font-size: large;
+    transition: all 0.2s ease-in-out;
+  }
 
-	&:not([data-status="0"]) {
-		transition: all .5s;
-	}
-	&[data-status="0"]  { 
-		--theme-color: #ddd;
-		transition: all .2s;
-	}	
-	&[data-status="-1"] { --theme-color: lime; }	
-	&[data-status="1"]  { --theme-color: #f48; }
+  &:not([data-status="0"]) {
+    transition: all 0.5s;
+  }
 
-	&[data-status="-1"]::after { content: '×' }	
-	&[data-status="1"]::after { content: '⚬' }
+  &[data-status="0"] {
+    --theme-color: var(--muted);
+  }
 
-	&[data-limbo="true"] {
-		animation: pulse 1.75s ease-in-out 0s infinite forwards normal;
-	}
-}	
+  &[data-status="-1"] {
+    --theme-color: var(--pine); /* X player */
+  }
 
-@keyframes pulse {
-	50%{
-		opacity: .5;
-		scale : .95;
-	}
+  &[data-status="1"] {
+    --theme-color: var(--love); /* O player */
+  }
+
+  &[data-status="-1"]::after {
+    content: "×";
+    font-size: 1.5rem;
+    font-weight: bold;
+  }
+
+  &[data-status="1"]::after {
+    content: "⚬";
+    font-size: 1.5rem;
+    font-weight: bold;
+  }
+
+  &[data-limbo="true"] {
+    animation: pulse 1.75s ease-in-out 0s infinite forwards normal;
+  }
 }
 
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+    scale: 0.95;
+  }
+}
