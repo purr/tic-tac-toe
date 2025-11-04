@@ -16,6 +16,14 @@ type Props = {
   emit: (e?: unknown) => void;
 }
 
+// Inactivity timeout configuration (in milliseconds)
+const INACTIVITY_CONFIG = {
+  WARNING_START: 10000,           // Show warning after 10 seconds of inactivity
+  AUTO_DISCONNECT: 15000,         // Auto-disconnect after 15 seconds of inactivity (applies to both players)
+  NOTIFICATION_DURATION: 3000,    // Show disconnect notification for 3 seconds before returning to menu
+  CHECK_INTERVAL: 500,            // Check inactivity every 500ms for smooth countdown
+};
+
 export default function App({ socket: ss, player, emit }: Props) {
   const [asignation, _asignation] = useState(player);
   const socket: Socket = useMemo(() => ss, []);
@@ -27,6 +35,8 @@ export default function App({ socket: ss, player, emit }: Props) {
 
   const [turn, _turn] = useState<player>(cellState.x);
   const [showDisconnectNotification, _showDisconnectNotification] = useState(false);
+  const [inactivityWarning, _inactivityWarning] = useState(0); // Countdown in seconds for current player (0 = no warning)
+  const [opponentInactivityWarning, _opponentInactivityWarning] = useState(0); // Countdown for opponent (0 = no warning)
 
   const cells = useMemo(() => {
     const r = Array(9).fill(cellState.n);
@@ -78,63 +88,105 @@ export default function App({ socket: ss, player, emit }: Props) {
     };
   }, []);
 
-  // Ping/Pong system for connection monitoring
+  // Inactivity monitoring system (frontend-based, no server ping/pong needed)
   useEffect(() => {
-    let missedPings = 0;
-    let pingInterval: NodeJS.Timeout | null = null;
+    let inactivityTimer: NodeJS.Timeout | null = null;
+    let warningTimer: NodeJS.Timeout | null = null;
     let lastActivityTime = Date.now();
+    let warningStartTime: number | null = null;
 
-    // Send ping every second
-    pingInterval = setInterval(() => {
-      const timeSinceLastActivity = Date.now() - lastActivityTime;
-
-      // Check if 5 seconds have passed without any activity
-      if (timeSinceLastActivity >= 5000) {
-        // Show disconnect notification and redirect to menu after 3 seconds
-        _showDisconnectNotification(true);
-
-        setTimeout(() => {
-          emit();
-        }, 3000);
-
-        if (pingInterval) clearInterval(pingInterval);
-        return;
-      }
-
-      // Send ping to server
-      socket.emit('ping');
-      missedPings++;
-    }, 1000);
-
-    // Listen for any message from server to reset activity timer
-    const handleAnyMessage = () => {
+    const resetActivity = () => {
       lastActivityTime = Date.now();
-      missedPings = 0;
+      _inactivityWarning(0);
+      _opponentInactivityWarning(0);
+      warningStartTime = null;
+
+      if (warningTimer) {
+        clearInterval(warningTimer);
+        warningTimer = null;
+      }
     };
 
-    // Listen for pong response
-    socket.on('pong', handleAnyMessage);
+    // Monitor for inactivity
+    const checkInactivity = () => {
+      const now = Date.now();
+      const timeSinceActivity = now - lastActivityTime;
 
-    // Also reset on any game-related message
-    socket.on('turn', handleAnyMessage);
-    socket.on('rematch', handleAnyMessage);
-    socket.on('game_end', handleAnyMessage);
-    socket.on('game_start', handleAnyMessage);
+      // If it's our turn (we're the active player)
+      if (turn === asignation) {
+        // Show warning after WARNING_START seconds
+        if (timeSinceActivity >= INACTIVITY_CONFIG.WARNING_START && timeSinceActivity < INACTIVITY_CONFIG.AUTO_DISCONNECT) {
+          if (!warningStartTime) {
+            warningStartTime = now;
+          }
+          const secondsRemaining = Math.ceil((INACTIVITY_CONFIG.AUTO_DISCONNECT - timeSinceActivity) / 1000);
+          _inactivityWarning(secondsRemaining);
+          _opponentInactivityWarning(0); // Clear opponent warning
+        } else if (timeSinceActivity >= INACTIVITY_CONFIG.AUTO_DISCONNECT) {
+          // Auto-disconnect after AUTO_DISCONNECT seconds of inactivity
+          _inactivityWarning(0);
+          _opponentInactivityWarning(0);
+          _showDisconnectNotification(true);
+          setTimeout(() => {
+            emit();
+          }, INACTIVITY_CONFIG.NOTIFICATION_DURATION);
+
+          if (inactivityTimer) clearInterval(inactivityTimer);
+          if (warningTimer) clearInterval(warningTimer);
+        } else {
+          _inactivityWarning(0);
+          _opponentInactivityWarning(0);
+        }
+      } else {
+        // It's opponent's turn - we're waiting
+        // Show warning to us that opponent is taking too long (same timeline: 10-15s)
+        if (timeSinceActivity >= INACTIVITY_CONFIG.WARNING_START && timeSinceActivity < INACTIVITY_CONFIG.AUTO_DISCONNECT) {
+          const secondsRemaining = Math.ceil((INACTIVITY_CONFIG.AUTO_DISCONNECT - timeSinceActivity) / 1000);
+          _opponentInactivityWarning(secondsRemaining);
+          _inactivityWarning(0); // Clear our warning
+        } else if (timeSinceActivity >= INACTIVITY_CONFIG.AUTO_DISCONNECT) {
+          // Opponent didn't move, disconnect both
+          _inactivityWarning(0);
+          _opponentInactivityWarning(0);
+          _showDisconnectNotification(true);
+          setTimeout(() => {
+            emit();
+          }, INACTIVITY_CONFIG.NOTIFICATION_DURATION);
+
+          if (inactivityTimer) clearInterval(inactivityTimer);
+          if (warningTimer) clearInterval(warningTimer);
+        } else {
+          _inactivityWarning(0);
+          _opponentInactivityWarning(0);
+        }
+      }
+    };
+
+    // Check at regular intervals for smooth countdown
+    inactivityTimer = setInterval(checkInactivity, INACTIVITY_CONFIG.CHECK_INTERVAL);
+
+    // Reset activity on any game action
+    socket.on('turn', resetActivity);
+    socket.on('game_start', resetActivity);
+    socket.on('game_end', resetActivity);
 
     // Handle explicit disconnect
     socket.on('disconnect', () => {
       _showDisconnectNotification(true);
       setTimeout(() => {
         emit();
-      }, 3000);
+      }, INACTIVITY_CONFIG.NOTIFICATION_DURATION);
     });
 
     // Cleanup
     return () => {
-      if (pingInterval) clearInterval(pingInterval);
-      socket.off('pong', handleAnyMessage);
+      if (inactivityTimer) clearInterval(inactivityTimer);
+      if (warningTimer) clearInterval(warningTimer);
+      socket.off('turn', resetActivity);
+      socket.off('game_start', resetActivity);
+      socket.off('game_end', resetActivity);
     };
-  }, [socket, emit]);
+  }, [socket, emit, turn, asignation]);
 
   const handleClick = function(ev: React.MouseEvent<HTMLButtonElement>) {
     if (winner !== cellState.n || turn !== asignation) return;
@@ -143,6 +195,9 @@ export default function App({ socket: ss, player, emit }: Props) {
     const i = Number(target.dataset['index']);
 
     if (isNaN(i) || i < 0 || i > 8) return;
+
+    // Reset inactivity warning when player makes a move
+    _inactivityWarning(0);
 
     socket.emit('turn', { coord: i, turn: asignation });
 
@@ -160,6 +215,22 @@ export default function App({ socket: ss, player, emit }: Props) {
       <main className='h-full flex-grow grid place-items-center'>
         <div>
           <div className={`${s.cell} mx-auto size-12 flex items-center justify-center my-6 rounded-full border-2 text-center filter ${(asignation !== turn) && 'saturate-0'}`} data-status={asignation}></div>
+
+          {/* Inactivity Warning - When it's YOUR turn */}
+          {inactivityWarning > 0 && turn === asignation && winner === cellState.n && (
+            <div className="mb-4 px-4 py-2 bg-rose-overlay border-2 border-rose-gold rounded-lg text-center animate-pulse">
+              <p className="text-rose-gold font-bold">⚠ Make your move!</p>
+              <p className="text-hierarchy-1 text-sm">Disconnecting in {inactivityWarning} second{inactivityWarning !== 1 ? 's' : ''}...</p>
+            </div>
+          )}
+
+          {/* Opponent Inactivity Warning - When it's OPPONENT'S turn */}
+          {opponentInactivityWarning > 0 && turn !== asignation && winner === cellState.n && (
+            <div className="mb-4 px-4 py-2 bg-rose-overlay border-2 border-rose-foam rounded-lg text-center">
+              <p className="text-rose-foam font-bold">⏳ Waiting for opponent...</p>
+              <p className="text-hierarchy-1 text-sm">They will disconnect in {opponentInactivityWarning} second{opponentInactivityWarning !== 1 ? 's' : ''} if no move is made</p>
+            </div>
+          )}
 
           <div className={`${s.board} grid grid-cols-3 grid-rows-3 size-64 gap-2 text-center ${winner !== cellState.n && 'filter saturate-50 brightness-75'}`}>
             { cells.map((c, i) => (
