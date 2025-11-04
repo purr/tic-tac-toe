@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import OnlineBoard from './components/Board';
 import LocalBoard from './components/Board.local';
 import ThemeToggle from './components/ThemeToggle';
+import { serverUrl } from './config';
 
 enum gameStates {
   waiting,
@@ -14,11 +15,22 @@ enum gameStates {
 
 enum playType { local, online }
 
+enum connectionStates {
+  disconnected,
+  connecting,
+  connected,
+  error,
+  timeout,
+}
+
 function App() {
 
   const [gameState, _gameState] = useState(gameStates.menu);
+  const [connectionState, _connectionState] = useState(connectionStates.disconnected);
+  const [errorMessage, _errorMessage] = useState<string>('');
   const socket = useRef<Socket | null>(null);
   const player = useRef(0);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleQuit = useCallback((p? : any) => {
     CancelOnline();
@@ -27,10 +39,61 @@ function App() {
   const handleMenu = useCallback(function (p : playType) {
     switch (p) {
       case playType.online:
-        const s = io(import.meta.env.VITE_server_URL);
+        // Reset states
+        _connectionState(connectionStates.connecting);
+        _errorMessage('');
         _gameState(gameStates.waiting);
 
-        s.on('room_joined', p => {
+        // Set a connection timeout (15 seconds)
+        connectionTimeoutRef.current = setTimeout(() => {
+          if (connectionState === connectionStates.connecting) {
+            _connectionState(connectionStates.timeout);
+            _errorMessage('Connection timeout. The server might be down or unreachable.');
+            socket.current?.disconnect();
+          }
+        }, 15000);
+
+        const s = io(serverUrl, {
+          transports: ['websocket', 'polling'],
+          reconnectionAttempts: 3,
+          timeout: 10000,
+        });
+
+        // Connection event handlers
+        s.on('connect', () => {
+          if (connectionTimeoutRef.current) {
+            clearTimeout(connectionTimeoutRef.current);
+            connectionTimeoutRef.current = null;
+          }
+          _connectionState(connectionStates.connected);
+          _errorMessage('');
+        });
+
+        s.on('connect_error', (error: Error) => {
+          if (connectionTimeoutRef.current) {
+            clearTimeout(connectionTimeoutRef.current);
+            connectionTimeoutRef.current = null;
+          }
+          _connectionState(connectionStates.error);
+          
+          // Check for specific error types
+          if (error.message.includes('404')) {
+            _errorMessage('Server not found (404). Please try again later.');
+          } else if (error.message.includes('timeout')) {
+            _errorMessage('Connection timeout. Please check your internet connection.');
+          } else {
+            _errorMessage(`Connection error: ${error.message}`);
+          }
+        });
+
+        s.on('disconnect', (reason: string) => {
+          if (gameState === gameStates.playing) {
+            _errorMessage(`Disconnected: ${reason}`);
+          }
+        });
+
+        // Game event handlers
+        s.on('room_joined', (p: any) => {
           player.current = [-1, 1][p.players - 1];
         });
 
@@ -49,7 +112,15 @@ function App() {
 
   const CancelOnline = function() {
     _gameState(gameStates.menu);
+    _connectionState(connectionStates.disconnected);
+    _errorMessage('');
     player.current = 0;
+
+    // Clear connection timeout if it exists
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
 
     socket.current?.disconnect();
     socket.current = null;
@@ -75,9 +146,41 @@ function App() {
         { gameState === gameStates.waiting && <footer className="h-full text-left">
           <hgroup className='mb-6'>
             <h2 className='text-lg'>GameMode: Online</h2>
-            <p className='text-hierarchy-1'>please wait while waiting for an opponent...</p>
+            
+            {/* Connection Status */}
+            {connectionState === connectionStates.connecting && (
+              <div className='text-hierarchy-1 flex items-center gap-2'>
+                <div className='inline-block w-4 h-4 border-2 border-t-transparent border-rose-iris rounded-full animate-spin'></div>
+                <p>Attempting to connect to server...</p>
+              </div>
+            )}
+            
+            {connectionState === connectionStates.connected && (
+              <div className='text-green-400'>
+                <p>✓ Connected to server</p>
+                <p className='text-hierarchy-1 mt-2'>Looking for an opponent...</p>
+              </div>
+            )}
+            
+            {connectionState === connectionStates.error && (
+              <div className='text-red-400'>
+                <p>✗ Connection failed</p>
+                <p className='text-sm mt-1'>{errorMessage || 'Unable to connect to server'}</p>
+                <p className='text-hierarchy-1 text-xs mt-2'>The server may be temporarily unavailable. Please try again later.</p>
+              </div>
+            )}
+            
+            {connectionState === connectionStates.timeout && (
+              <div className='text-yellow-400'>
+                <p>⚠ Connection timeout</p>
+                <p className='text-sm mt-1'>{errorMessage || 'Server is not responding'}</p>
+                <p className='text-hierarchy-1 text-xs mt-2'>Please check your internet connection or try again later.</p>
+              </div>
+            )}
           </hgroup>
-          <button onClick={CancelOnline} className='btn block p-2 w-32 mx-auto border-2 rounded hover:bg-rose-overlay hover:text-hierarchy-0 transition-colors cursor-pointer'>Cancel</button>
+          <button onClick={CancelOnline} className='btn block p-2 w-32 mx-auto border-2 rounded hover:bg-rose-overlay hover:text-hierarchy-0 transition-colors cursor-pointer'>
+            {(connectionState === connectionStates.error || connectionState === connectionStates.timeout) ? 'Back to Menu' : 'Cancel'}
+          </button>
         </footer> }
 
         { gameState === gameStates.playing && <OnlineBoard socket={socket.current!} player={player.current} emit={handleQuit} /> }
