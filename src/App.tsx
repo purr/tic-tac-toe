@@ -75,7 +75,7 @@ function App() {
             connectionTimeoutRef.current = null;
           }
           _connectionState(connectionStates.error);
-          
+
           // Check for specific error types
           if (error.message.includes('404')) {
             _errorMessage('Server not found (404). Please try again later.');
@@ -146,7 +146,7 @@ function App() {
         { gameState === gameStates.waiting && <footer className="h-full text-left">
           <hgroup className='mb-6'>
             <h2 className='text-lg'>GameMode: Online</h2>
-            
+
             {/* Connection Status */}
             {connectionState === connectionStates.connecting && (
               <div className='text-hierarchy-1 flex items-center gap-2'>
@@ -154,14 +154,14 @@ function App() {
                 <p>Attempting to connect to server...</p>
               </div>
             )}
-            
+
             {connectionState === connectionStates.connected && (
               <div className='text-green-400'>
                 <p>✓ Connected to server</p>
                 <p className='text-hierarchy-1 mt-2'>Looking for an opponent...</p>
               </div>
             )}
-            
+
             {connectionState === connectionStates.error && (
               <div className='text-red-400'>
                 <p>✗ Connection failed</p>
@@ -169,7 +169,7 @@ function App() {
                 <p className='text-hierarchy-1 text-xs mt-2'>The server may be temporarily unavailable. Please try again later.</p>
               </div>
             )}
-            
+
             {connectionState === connectionStates.timeout && (
               <div className='text-yellow-400'>
                 <p>⚠ Connection timeout</p>
