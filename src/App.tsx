@@ -156,14 +156,14 @@ function App() {
             )}
 
             {connectionState === connectionStates.connected && (
-              <div className='text-green-400'>
+              <div className='text-rose-foam'>
                 <p>✓ Connected to server</p>
                 <p className='text-hierarchy-1 mt-2'>Looking for an opponent...</p>
               </div>
             )}
 
             {connectionState === connectionStates.error && (
-              <div className='text-red-400'>
+              <div className='text-rose-love'>
                 <p>✗ Connection failed</p>
                 <p className='text-sm mt-1'>{errorMessage || 'Unable to connect to server'}</p>
                 <p className='text-hierarchy-1 text-xs mt-2'>The server may be temporarily unavailable. Please try again later.</p>
@@ -171,7 +171,7 @@ function App() {
             )}
 
             {connectionState === connectionStates.timeout && (
-              <div className='text-yellow-400'>
+              <div className='text-rose-gold'>
                 <p>⚠ Connection timeout</p>
                 <p className='text-sm mt-1'>{errorMessage || 'Server is not responding'}</p>
                 <p className='text-hierarchy-1 text-xs mt-2'>Please check your internet connection or try again later.</p>

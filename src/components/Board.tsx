@@ -26,6 +26,7 @@ export default function App({ socket: ss, player, emit }: Props) {
   }
 
   const [turn, _turn] = useState<player>(cellState.x);
+  const [showDisconnectNotification, _showDisconnectNotification] = useState(false);
 
   const cells = useMemo(() => {
     const r = Array(9).fill(cellState.n);
@@ -77,6 +78,64 @@ export default function App({ socket: ss, player, emit }: Props) {
     };
   }, []);
 
+  // Ping/Pong system for connection monitoring
+  useEffect(() => {
+    let missedPings = 0;
+    let pingInterval: NodeJS.Timeout | null = null;
+    let lastActivityTime = Date.now();
+
+    // Send ping every second
+    pingInterval = setInterval(() => {
+      const timeSinceLastActivity = Date.now() - lastActivityTime;
+
+      // Check if 5 seconds have passed without any activity
+      if (timeSinceLastActivity >= 5000) {
+        // Show disconnect notification and redirect to menu after 3 seconds
+        _showDisconnectNotification(true);
+
+        setTimeout(() => {
+          emit();
+        }, 3000);
+
+        if (pingInterval) clearInterval(pingInterval);
+        return;
+      }
+
+      // Send ping to server
+      socket.emit('ping');
+      missedPings++;
+    }, 1000);
+
+    // Listen for any message from server to reset activity timer
+    const handleAnyMessage = () => {
+      lastActivityTime = Date.now();
+      missedPings = 0;
+    };
+
+    // Listen for pong response
+    socket.on('pong', handleAnyMessage);
+
+    // Also reset on any game-related message
+    socket.on('turn', handleAnyMessage);
+    socket.on('rematch', handleAnyMessage);
+    socket.on('game_end', handleAnyMessage);
+    socket.on('game_start', handleAnyMessage);
+
+    // Handle explicit disconnect
+    socket.on('disconnect', () => {
+      _showDisconnectNotification(true);
+      setTimeout(() => {
+        emit();
+      }, 3000);
+    });
+
+    // Cleanup
+    return () => {
+      if (pingInterval) clearInterval(pingInterval);
+      socket.off('pong', handleAnyMessage);
+    };
+  }, [socket, emit]);
+
   const handleClick = function(ev: React.MouseEvent<HTMLButtonElement>) {
     if (winner !== cellState.n || turn !== asignation) return;
 
@@ -118,6 +177,23 @@ export default function App({ socket: ss, player, emit }: Props) {
         </div>
       </main>
       <BoardControls.BottomMenu handleMenu={handleMenu} handleRetry={handleRetry} winner={winner} />
+
+      {/* Disconnect Notification */}
+      {showDisconnectNotification && (
+        <div className="fixed inset-0 bg-rose-overlay bg-opacity-80 flex items-center justify-center z-50">
+          <div className="bg-rose-surface border-2 border-rose-muted rounded-lg p-8 max-w-md mx-4 shadow-2xl">
+            <div className="text-center">
+              <div className="text-rose-love text-5xl mb-4">⚠</div>
+              <h2 className="text-2xl font-bold text-hierarchy-0 mb-3">Connection Lost</h2>
+              <p className="text-hierarchy-1 mb-2">The other player has disconnected or the connection was lost.</p>
+              <p className="text-hierarchy-2 text-sm">Returning to menu...</p>
+              <div className="mt-6 flex justify-center">
+                <div className="w-8 h-8 border-4 border-rose-iris border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
