@@ -19,7 +19,8 @@ type Props = {
 // Inactivity timeout configuration (in milliseconds)
 const INACTIVITY_CONFIG = {
   WARNING_START: 10000,           // Show warning after 10 seconds of inactivity
-  AUTO_DISCONNECT: 15000,         // Auto-disconnect after 15 seconds of inactivity (applies to both players)
+  WARNING_DURATION: 15000,        // Warning countdown duration (15 seconds)
+  TOTAL_TIMEOUT: 25000,           // Total timeout: 10s + 15s = 25s before disconnect
   NOTIFICATION_DURATION: 3000,    // Show disconnect notification for 3 seconds before returning to menu
   CHECK_INTERVAL: 500,            // Check inactivity every 500ms for smooth countdown
 };
@@ -114,16 +115,17 @@ export default function App({ socket: ss, player, emit }: Props) {
 
       // If it's our turn (we're the active player)
       if (turn === asignation) {
-        // Show warning after WARNING_START seconds
-        if (timeSinceActivity >= INACTIVITY_CONFIG.WARNING_START && timeSinceActivity < INACTIVITY_CONFIG.AUTO_DISCONNECT) {
+        // Show warning after WARNING_START seconds (10s)
+        if (timeSinceActivity >= INACTIVITY_CONFIG.WARNING_START && timeSinceActivity < INACTIVITY_CONFIG.TOTAL_TIMEOUT) {
           if (!warningStartTime) {
             warningStartTime = now;
           }
-          const secondsRemaining = Math.ceil((INACTIVITY_CONFIG.AUTO_DISCONNECT - timeSinceActivity) / 1000);
+          // Calculate seconds remaining from total timeout
+          const secondsRemaining = Math.ceil((INACTIVITY_CONFIG.TOTAL_TIMEOUT - timeSinceActivity) / 1000);
           _inactivityWarning(secondsRemaining);
           _opponentInactivityWarning(0); // Clear opponent warning
-        } else if (timeSinceActivity >= INACTIVITY_CONFIG.AUTO_DISCONNECT) {
-          // Auto-disconnect after AUTO_DISCONNECT seconds of inactivity
+        } else if (timeSinceActivity >= INACTIVITY_CONFIG.TOTAL_TIMEOUT) {
+          // Auto-disconnect after TOTAL_TIMEOUT (25s total: 10s silent + 15s warning)
           _inactivityWarning(0);
           _opponentInactivityWarning(0);
           _showDisconnectNotification(true);
@@ -139,12 +141,12 @@ export default function App({ socket: ss, player, emit }: Props) {
         }
       } else {
         // It's opponent's turn - we're waiting
-        // Show warning to us that opponent is taking too long (same timeline: 10-15s)
-        if (timeSinceActivity >= INACTIVITY_CONFIG.WARNING_START && timeSinceActivity < INACTIVITY_CONFIG.AUTO_DISCONNECT) {
-          const secondsRemaining = Math.ceil((INACTIVITY_CONFIG.AUTO_DISCONNECT - timeSinceActivity) / 1000);
+        // Show warning to us that opponent is taking too long (same timeline: 10s + 15s warning)
+        if (timeSinceActivity >= INACTIVITY_CONFIG.WARNING_START && timeSinceActivity < INACTIVITY_CONFIG.TOTAL_TIMEOUT) {
+          const secondsRemaining = Math.ceil((INACTIVITY_CONFIG.TOTAL_TIMEOUT - timeSinceActivity) / 1000);
           _opponentInactivityWarning(secondsRemaining);
           _inactivityWarning(0); // Clear our warning
-        } else if (timeSinceActivity >= INACTIVITY_CONFIG.AUTO_DISCONNECT) {
+        } else if (timeSinceActivity >= INACTIVITY_CONFIG.TOTAL_TIMEOUT) {
           // Opponent didn't move, disconnect both
           _inactivityWarning(0);
           _opponentInactivityWarning(0);
@@ -212,25 +214,9 @@ export default function App({ socket: ss, player, emit }: Props) {
 
   return (
     <>
-      <main className='h-full flex-grow grid place-items-center'>
+      <main className='h-full flex-grow grid place-items-center relative'>
         <div>
           <div className={`${s.cell} mx-auto size-12 flex items-center justify-center my-6 rounded-full border-2 text-center filter ${(asignation !== turn) && 'saturate-0'}`} data-status={asignation}></div>
-
-          {/* Inactivity Warning - When it's YOUR turn */}
-          {inactivityWarning > 0 && turn === asignation && winner === cellState.n && (
-            <div className="mb-4 px-4 py-2 bg-rose-overlay border-2 border-rose-gold rounded-lg text-center animate-pulse">
-              <p className="text-rose-gold font-bold">⚠ Make your move!</p>
-              <p className="text-hierarchy-1 text-sm">Disconnecting in {inactivityWarning} second{inactivityWarning !== 1 ? 's' : ''}...</p>
-            </div>
-          )}
-
-          {/* Opponent Inactivity Warning - When it's OPPONENT'S turn */}
-          {opponentInactivityWarning > 0 && turn !== asignation && winner === cellState.n && (
-            <div className="mb-4 px-4 py-2 bg-rose-overlay border-2 border-rose-foam rounded-lg text-center">
-              <p className="text-rose-foam font-bold">⏳ Waiting for opponent...</p>
-              <p className="text-hierarchy-1 text-sm">They will disconnect in {opponentInactivityWarning} second{opponentInactivityWarning !== 1 ? 's' : ''} if no move is made</p>
-            </div>
-          )}
 
           <div className={`${s.board} grid grid-cols-3 grid-rows-3 size-64 gap-2 text-center ${winner !== cellState.n && 'filter saturate-50 brightness-75'}`}>
             { cells.map((c, i) => (
@@ -246,6 +232,22 @@ export default function App({ socket: ss, player, emit }: Props) {
             ))}
           </div>
         </div>
+
+        {/* Inactivity Warning - When it's YOUR turn (Fixed position, doesn't move board) */}
+        {inactivityWarning > 0 && turn === asignation && winner === cellState.n && (
+          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-40 px-4 py-3 bg-rose-overlay border-2 border-rose-gold rounded-lg text-center animate-pulse shadow-2xl max-w-sm w-full mx-4">
+            <p className="text-rose-gold font-bold">⚠ Make your move!</p>
+            <p className="text-hierarchy-1 text-sm">Disconnecting in {inactivityWarning} second{inactivityWarning !== 1 ? 's' : ''}...</p>
+          </div>
+        )}
+
+        {/* Opponent Inactivity Warning - When it's OPPONENT'S turn (Fixed position, doesn't move board) */}
+        {opponentInactivityWarning > 0 && turn !== asignation && winner === cellState.n && (
+          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-40 px-4 py-3 bg-rose-overlay border-2 border-rose-foam rounded-lg text-center shadow-2xl max-w-sm w-full mx-4">
+            <p className="text-rose-foam font-bold">⏳ Waiting for opponent...</p>
+            <p className="text-hierarchy-1 text-sm">They will disconnect in {opponentInactivityWarning} second{opponentInactivityWarning !== 1 ? 's' : ''} if no move is made</p>
+          </div>
+        )}
       </main>
       <BoardControls.BottomMenu handleMenu={handleMenu} handleRetry={handleRetry} winner={winner} />
 
